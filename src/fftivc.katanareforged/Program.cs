@@ -1,41 +1,39 @@
-using System;
-
+using Reloaded.Hooks.ReloadedII.Interfaces;
 using Reloaded.Mod.Interfaces;
 using Reloaded.Mod.Interfaces.Internal;
 
 namespace fftivc.katanareforged;
 
 /// <summary>
-/// Katana Reforged entry point.
-///
-/// Planned behavior: detect katanas broken in battle and make them available in the Poach Store.
-/// This initial scaffold only verifies that the mod loads cleanly under Reloaded-II.
+/// Reloaded-II entry point. Keep loader-specific plumbing here and the probe logic in KatanaProbeMod.
 /// </summary>
 public sealed class Program : IMod
 {
-    private ILogger _logger = null!;
-    private IModLoader _modLoader = null!;
-    private IModConfig _modConfig = null!;
+    private ModBase _mod = new();
 
     public void StartEx(IModLoaderV1 loaderApi, IModConfigV1 modConfigV1)
     {
-        _modLoader = (IModLoader)loaderApi;
-        _modConfig = (IModConfig)modConfigV1;
-        _logger = (ILogger)_modLoader.GetLogger();
+        var modLoader = (IModLoader)loaderApi;
+        var modConfig = (IModConfig)modConfigV1;
+        var logger = (ILogger)modLoader.GetLogger();
 
-        Log("Katana Reforged loaded. No gameplay hooks installed yet.");
+        IReloadedHooks? hooks = null;
+        modLoader.GetController<IReloadedHooks>()?.TryGetTarget(out hooks);
+
+        _mod = new KatanaProbeMod(new ModContext
+        {
+            Logger = logger,
+            Hooks = hooks,
+            ModLoader = modLoader,
+            ModConfig = modConfig,
+            Owner = this,
+        });
     }
 
-    public void Suspend() { }
-    public void Resume() { }
-    public void Unload() { }
-    public bool CanUnload() => false;
-    public bool CanSuspend() => false;
-
-    public Action? Disposing { get; }
-
-    private void Log(string message)
-    {
-        _logger.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [{_modConfig.ModId}] {message}");
-    }
+    public void Suspend() => _mod.Suspend();
+    public void Resume() => _mod.Resume();
+    public void Unload() => _mod.Unload();
+    public bool CanUnload() => _mod.CanUnload();
+    public bool CanSuspend() => _mod.CanSuspend();
+    public Action Disposing => () => _mod.Disposing();
 }

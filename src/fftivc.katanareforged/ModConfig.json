@@ -1,10 +1,10 @@
 {
-  "ModId": "fftivc.katanareforged",
+  "ModId": "ffttic.katanareforged",
   "ModName": "Katana Reforged",
   "ModAuthor": "Pélos",
   "ModVersion": "0.1.0",
   "ModDescription": "Makes katanas broken in battle become available in the Poach Store.",
-  "ModDll": "fftivc.katanareforged.dll",
+  "ModDll": "ffttic.katanareforged.dll",
   "ModIcon": "",
   "ModR2RManagedDll32": "",
   "ModR2RManagedDll64": "",
@@ -14,7 +14,7 @@
   "CanUnload": false,
   "HasExports": false,
   "IsLibrary": false,
-  "ReleaseMetadataFileName": "fftivc.katanareforged.ReleaseMetadata.json",
+  "ReleaseMetadataFileName": "ffttic.katanareforged.ReleaseMetadata.json",
   "PluginData": {
     "GitHubDependencies": {
       "IdToConfigMap": {
@@ -65,4 +65,3 @@
   ],
   "ProjectUrl": "https://github.com/mpelos/FFTKatanaReforged"
 }
-

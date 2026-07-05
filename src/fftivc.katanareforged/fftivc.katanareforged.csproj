@@ -8,7 +8,8 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ImplicitUsings>enable</ImplicitUsings>
-    <OutputPath Condition="'$(RELOADEDIIMODS)' != ''">$(RELOADEDIIMODS)/fftivc.katanareforged</OutputPath>
+    <AssemblyName>ffttic.katanareforged</AssemblyName>
+    <OutputPath Condition="'$(RELOADEDIIMODS)' != ''">$(RELOADEDIIMODS)/ffttic.katanareforged</OutputPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,4 +28,3 @@
   </ItemGroup>
 
 </Project>
-
