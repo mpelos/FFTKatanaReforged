@@ -12,6 +12,7 @@ namespace fftivc.katanareforged;
 
 internal sealed class KatanaProbeMod : ModBase
 {
+    private static readonly bool DiagnosticLogsEnabled = false; // Set true to re-enable probe logs.
     private const string BattleBasePtrPattern = "0F B7 41 30 66 89 42 0C";
     private const string ProcessSpoilsPattern = "48 8B C4 48 89 58 ?? 48 89 68 ?? 48 89 70 ?? 48 89 78 ?? 41 57 48 83 EC ?? 83 25 ?? ?? ?? ?? ?? 48 8D 3D ?? ?? ?? ?? 48 8B CF E8";
     private const string GetTablePattern = "45 33 C0 89 54 24 ?? 45 8B D0 4C 8B D9 49 B9 ?? ?? ?? ?? ?? ?? ?? ?? 42 0F B6 44 14 ?? 48 B9 ?? ?? ?? ?? ?? ?? ?? ?? 4C 33 C8 49 FF C2 4C 0F AF C9 49 83 FA ?? 72 ?? 49 8B 4B";
@@ -1178,6 +1179,9 @@ internal sealed class KatanaProbeMod : ModBase
 
     private void Line(string message)
     {
+        if (!DiagnosticLogsEnabled)
+            return;
+
         string line = $"[{DateTime.Now:HH:mm:ss.fff}] [{_modConfig?.ModId ?? "ffttic.katanareforged"}] {message}";
         lock (_logGate)
         {

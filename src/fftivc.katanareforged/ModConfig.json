@@ -2,7 +2,7 @@
   "ModId": "ffttic.katanareforged",
   "ModName": "Katana Reforged",
   "ModAuthor": "Pélos",
-  "ModVersion": "0.1.0",
+  "ModVersion": "1.0.0",
   "ModDescription": "Makes katanas broken in battle become available in the Poach Store.",
   "ModDll": "ffttic.katanareforged.dll",
   "ModIcon": "",
