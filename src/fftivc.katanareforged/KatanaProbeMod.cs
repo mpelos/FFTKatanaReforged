@@ -63,6 +63,9 @@ internal sealed class KatanaProbeMod : ModBase
         [85] = new(47, "Chirijiraden", "Chirijiraden", 94, 10),
     };
 
+    private static readonly Dictionary<int, KatanaInfo> KatanaPoachRows =
+        KatanaActions.Values.ToDictionary(katana => katana.PoachId);
+
     private readonly IModLoader _modLoader;
     private readonly IReloadedHooks? _hooks;
     private readonly ILogger _logger;
@@ -74,6 +77,7 @@ internal sealed class KatanaProbeMod : ModBase
     private readonly HashSet<nint> _unitRegistry = new();
     private readonly Dictionary<nint, UnitObservation> _unitObservations = new();
     private readonly Dictionary<nint, string> _lastActionState = new();
+    private readonly Dictionary<int, KatanaInfo> _activeKatanaPoachRows = new();
     private readonly Dictionary<int, int> _patchedPoachSlotItems = new();
     private readonly List<CalcEvent> _recentCalcEvents = new();
 
@@ -277,8 +281,10 @@ internal sealed class KatanaProbeMod : ModBase
             lock (_poachGate)
             {
                 _lastPoachCounts = SnapshotPoachCounts();
+                SyncActiveKatanaPoachRowsFromCounts(_lastPoachCounts);
                 LogPoachCounts("[POACH-COUNTS initial]", _lastPoachCounts);
             }
+            RefreshActiveKatanaPoachRows();
             TryDumpPoachTableOnce();
         });
     }
@@ -395,12 +401,14 @@ internal sealed class KatanaProbeMod : ModBase
 
         try
         {
+            RefreshActiveKatanaPoachRows();
             _processSpoilsHook!.OriginalFunction();
         }
         finally
         {
             try
             {
+                RefreshActiveKatanaPoachRows();
                 var after = SnapshotPoachCounts();
                 Line("[PROCESS-SPOILS exit]");
                 LogPoachDeltas("[PROCESS-SPOILS delta]", before, after);
@@ -437,6 +445,7 @@ internal sealed class KatanaProbeMod : ModBase
                 CaptureCalcEntryEvents(now);
                 PollRegisteredUnits(now);
                 CapturePoachCounterChanges();
+                RefreshActiveKatanaPoachRows();
                 TryDumpPoachTableOnce();
             }
             catch (Exception ex)
@@ -654,13 +663,49 @@ internal sealed class KatanaProbeMod : ModBase
             if (_lastPoachCounts is null)
             {
                 _lastPoachCounts = current;
+                SyncActiveKatanaPoachRowsFromCounts(current);
                 return;
             }
 
             if (current is not null && HasPoachDelta(_lastPoachCounts, current))
             {
+                SyncActiveKatanaPoachRowsFromCounts(current);
                 LogPoachDeltas("[POACH-DELTA poll]", _lastPoachCounts, current);
                 _lastPoachCounts = current;
+            }
+        }
+    }
+
+    private void SyncActiveKatanaPoachRowsFromCounts(byte[]? counts)
+    {
+        if (counts is null)
+            return;
+
+        foreach (var (poachId, katana) in KatanaPoachRows)
+        {
+            if (poachId < counts.Length && counts[poachId] > 0)
+                _activeKatanaPoachRows[poachId] = katana;
+        }
+    }
+
+    private void RefreshActiveKatanaPoachRows()
+    {
+        lock (_poachGate)
+        {
+            if (_activeKatanaPoachRows.Count == 0)
+                return;
+
+            foreach (var katana in _activeKatanaPoachRows.Values.ToArray())
+            {
+                if (TryPatchKatanaPoachRow(katana, out string details, out bool changed))
+                {
+                    if (changed)
+                        Line($"[KATANA-POACH-REFRESH] itemId={katana.ItemId} katana={katana.KatanaName} poachId={katana.PoachId} {details}");
+                }
+                else
+                {
+                    Line($"[KATANA-POACH-REFRESH-SKIP] itemId={katana.ItemId} katana={katana.KatanaName} poachId={katana.PoachId} {details}");
+                }
             }
         }
     }
@@ -811,7 +856,9 @@ internal sealed class KatanaProbeMod : ModBase
 
         lock (_poachGate)
         {
-            if (!TryPatchKatanaPoachRow(katana, out string patchDetails))
+            _activeKatanaPoachRows[katana.PoachId] = katana;
+
+            if (!TryPatchKatanaPoachRow(katana, out string patchDetails, out _))
             {
                 Line($"[KATANA-POACH-SKIP] reason=row-patch-failed itemId={katana.ItemId} katana={katana.KatanaName} poachId={katana.PoachId} {patchDetails}");
                 return;
@@ -827,9 +874,10 @@ internal sealed class KatanaProbeMod : ModBase
         }
     }
 
-    private bool TryPatchKatanaPoachRow(KatanaInfo katana, out string details)
+    private bool TryPatchKatanaPoachRow(KatanaInfo katana, out string details, out bool changed)
     {
         details = "";
+        changed = false;
         try
         {
             ulong row = GetRowData(0xEC, katana.PoachId);
@@ -843,13 +891,16 @@ internal sealed class KatanaProbeMod : ModBase
             int oldCost = Marshal.ReadInt32((nint)(row + 0x24));
             int oldSell = Marshal.ReadInt32((nint)(row + 0x28));
             int oldItem = Marshal.ReadInt32((nint)(row + 0x2C));
+            int cost = Math.Max(1, katana.Price);
+            int sellPrice = Math.Max(1, cost / 2);
             bool rowAlreadyPatched =
                 oldItem == katana.ItemId &&
+                oldCost == cost &&
+                oldSell == sellPrice &&
+                oldName.Equals(katana.KatanaName, StringComparison.Ordinal) &&
                 _patchedPoachSlotItems.TryGetValue(katana.PoachId, out int patchedItem) &&
                 patchedItem == katana.ItemId;
 
-            int cost = Math.Max(1, katana.Price);
-            int sellPrice = Math.Max(1, cost / 2);
             if (!rowAlreadyPatched)
             {
                 Marshal.WriteInt32((nint)(row + 0x24), cost);
@@ -867,6 +918,7 @@ internal sealed class KatanaProbeMod : ModBase
                 _patchedPoachSlotItems[katana.PoachId] = katana.ItemId;
                 string patchedName = ReadRelativeAnsiString(row, 0x8).Replace("<Icon=103>", "+");
                 details = $"row=0x{row:X} oldName=\"{oldName}\" newName=\"{patchedName}\" oldItem={oldItem} newItem={katana.ItemId} oldCost={oldCost} newCost={cost} oldSell={oldSell} newSell={sellPrice} namePatches={string.Join(",", namePatches)}";
+                changed = true;
                 return true;
             }
 
